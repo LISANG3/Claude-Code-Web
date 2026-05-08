@@ -23,7 +23,13 @@ interface ToolCallState {
   expanded: boolean;
 }
 
-export default function ChatView() {
+interface ChatViewProps {
+  sidebarVisible?: boolean;
+  onToggleSidebar?: () => void;
+  onSessionOpen?: (id: string, title: string, model?: string) => void;
+}
+
+export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpen }: ChatViewProps) {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
@@ -51,6 +57,10 @@ export default function ChatView() {
     switch (msg.type) {
       case 'session_info':
         setModel(msg.model);
+        if (onSessionOpen) {
+          const firstUserMsg = messages.find(m => m.role === 'user');
+          onSessionOpen(msg.sessionId, firstUserMsg?.content.slice(0, 30) || '新会话', msg.model);
+        }
         break;
 
       case 'text_delta':
@@ -137,7 +147,7 @@ export default function ChatView() {
       case 'ready':
         break;
     }
-  }, [currentText, currentThinking, currentTools]);
+  }, [currentText, currentThinking, currentTools, messages, onSessionOpen]);
 
   const { connected, sendChat, interrupt, sendSlashCommand } = useWebSocket({
     sessionId,
@@ -213,6 +223,19 @@ export default function ChatView() {
           <button onClick={() => navigate('/')} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={onToggleSidebar}
+            className={`p-1 rounded transition-colors ${
+              sidebarVisible
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+            title="文件浏览器 (Ctrl+B)"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
             </svg>
           </button>
           {model && <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-xs text-gray-600 dark:text-gray-400">{model}</span>}

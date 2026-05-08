@@ -70,3 +70,41 @@ export interface LoginResponse {
 export interface SessionsResponse {
   sessions: SessionMeta[];
 }
+
+// === File Browser ===
+export interface FileEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  modified?: string;
+  extension?: string;
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+  language?: string;
+  size: number;
+}
+
+export interface FileSearchResult {
+  path: string;
+  name: string;
+  score: number;
+}
+
+// === Git ===
+export interface GitStatus {
+  branch: string;
+  files: { path: string; status: 'modified' | 'added' | 'deleted' | 'renamed' }[];
+  ahead: number;
+  behind: number;
+}
+
+export interface GitCommit {
+  hash: string;
+  message: string;
+  date: string;
+  author: string;
+}

@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { getSessions, createSession, deleteSession, type SessionMeta } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
-export default function SessionList() {
+interface Props {
+  onSessionOpen?: (id: string, title: string, model?: string) => void;
+}
+
+export default function SessionList({ onSessionOpen }: Props) {
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
@@ -74,7 +78,10 @@ export default function SessionList() {
               <div
                 key={session.id}
                 className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => navigate(`/chat/${session.id}`)}
+                onClick={() => {
+                  onSessionOpen?.(session.id, session.title, session.model);
+                  navigate(`/chat/${session.id}`);
+                }}
               >
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{session.title}</h3>

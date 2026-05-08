@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authRouter, initDefaultUser } from './auth.js';
+import { filesRouter } from './files.js';
 import { handleConnection } from './ws-handler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +24,7 @@ const clientDist = join(__dirname, '../../client/dist');
 app.use(express.static(clientDist));
 
 app.use('/api', authRouter);
+app.use('/api/files', filesRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });

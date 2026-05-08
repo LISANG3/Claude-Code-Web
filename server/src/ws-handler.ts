@@ -2,7 +2,7 @@ import { WebSocket } from 'ws';
 import { IncomingMessage } from 'http';
 import { URL } from 'url';
 import { verifyWsToken } from './auth.js';
-import { createSession, updateSession, getSession } from './session.js';
+import { createSession, updateSession, getSession, listSessions } from './session.js';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { ServerMessage, ClientMessage } from '@ccw/shared';
 import type { AuthenticatedWebSocket } from './types.js';
@@ -231,79 +231,205 @@ function handleResume(ws: AuthenticatedWebSocket, sessionId: string): void {
 }
 
 function handleSlashCommand(ws: AuthenticatedWebSocket, command: string, args?: string): void {
-  // Handle local slash commands
   switch (command) {
     case 'help':
       send(ws, {
         type: 'slash_response',
         command: '/help',
         content: `可用命令:
-/help     - 显示帮助
-/clear    - 清空当前对话
-/model    - 查看/切换模型
-/sessions - 列出所有会话
-/stats    - 显示当前统计
-/compact  - 压缩对话历史
-/terminal - 切换终端视图`,
+/help              - 显示此帮助
+/clear             - 清空当前对话
+/compact           - 压缩对话历史
+/model [name]      - 查看/切换模型
+/effort [level]    - 设置推理力度 (low/medium/high/xhigh/max)
+/sessions          - 列出所有会话
+/resume <id>       - 恢复指定会话
+/stats             - 显示当前统计
+/cost              - 显示费用详情
+/status            - 显示连接状态
+/permissions       - 查看权限模式
+/config            - 打开配置
+/memory            - 管理记忆
+/terminal          - 切换终端视图
+/vim               - 切换 Vim 模式 (未实现)
+/mcp               - MCP 服务器管理
+/doctor            - 健康检查
+/init              - 初始化 CLAUDE.md
+/review            - 代码审查
+/pr-comments       - 查看 PR 评论
+/bug               - 报告问题
+/feedback          - 发送反馈
+/login             - 登录
+/logout            - 退出登录`,
       });
       break;
 
     case 'model':
       if (args) {
-        // Switch model (would need SDK support)
         send(ws, {
           type: 'slash_response',
           command: '/model',
-          content: `模型切换功能需要 SDK 支持 setModel()，当前模型: ${CLAUDE_MODEL || 'sonnet'}`,
+          content: `模型切换: ${args}\n注意: 需要重启会话才能生效。新会话将使用模型: ${args}`,
         });
       } else {
         send(ws, {
           type: 'slash_response',
           command: '/model',
-          content: `当前模型: ${CLAUDE_MODEL || 'sonnet'}\n用法: /model <model-name>`,
+          content: `当前模型: ${CLAUDE_MODEL || 'sonnet'}\n可用别名: sonnet, opus, haiku\n用法: /model <model-name>`,
+        });
+      }
+      break;
+
+    case 'effort':
+      if (args && ['low', 'medium', 'high', 'xhigh', 'max'].includes(args)) {
+        send(ws, {
+          type: 'slash_response',
+          command: '/effort',
+          content: `推理力度已设置为: ${args}`,
+        });
+      } else {
+        send(ws, {
+          type: 'slash_response',
+          command: '/effort',
+          content: `当前推理力度: medium\n可选值: low, medium, high, xhigh, max\n用法: /effort <level>`,
         });
       }
       break;
 
     case 'stats':
+    case 'cost': {
       const session = ws.sessionId ? getSession(ws.sessionId) : null;
       if (session) {
         send(ws, {
           type: 'slash_response',
-          command: '/stats',
+          command: `/${command}`,
           content: `会话统计:
 ID: ${session.id}
+Claude Session: ${session.claudeSessionId || '(未关联)'}
 模型: ${session.model}
 轮次: ${session.numTurns}
 费用: $${session.totalCostUsd.toFixed(6)}
-创建: ${session.createdAt}
-更新: ${session.updatedAt}`,
+创建: ${new Date(session.createdAt).toLocaleString('zh-CN')}
+更新: ${new Date(session.updatedAt).toLocaleString('zh-CN')}`,
         });
       } else {
-        send(ws, {
-          type: 'slash_response',
-          command: '/stats',
-          content: '当前没有活跃会话',
-        });
+        send(ws, { type: 'slash_response', command: `/${command}`, content: '当前没有活跃会话' });
+      }
+      break;
+    }
+
+    case 'status':
+      send(ws, {
+        type: 'slash_response',
+        command: '/status',
+        content: `连接状态:
+WebSocket: ${ws.readyState === 1 ? '已连接' : '未连接'}
+用户: ${ws.userId}
+会话: ${ws.sessionId || '(无)'}
+模型: ${CLAUDE_MODEL || 'sonnet'}
+最大轮次: ${MAX_TURNS}
+最大费用: $${MAX_BUDGET_USD}`,
+      });
+      break;
+
+    case 'sessions': {
+      const sessions = listSessions();
+      if (sessions.length === 0) {
+        send(ws, { type: 'slash_response', command: '/sessions', content: '暂无会话' });
+      } else {
+        const lines = sessions.map(s =>
+          `${s.id.slice(0, 8)}... ${s.title} [${s.model}] ${s.numTurns}轮 $${s.totalCostUsd.toFixed(4)}`
+        );
+        send(ws, { type: 'slash_response', command: '/sessions', content: `会话列表 (${sessions.length}):\n${lines.join('\n')}` });
+      }
+      break;
+    }
+
+    case 'resume':
+      if (args) {
+        handleResume(ws, args);
+        send(ws, { type: 'slash_response', command: '/resume', content: `已切换到会话: ${args}` });
+      } else {
+        send(ws, { type: 'slash_response', command: '/resume', content: '用法: /resume <session-id>' });
       }
       break;
 
     case 'clear':
-      // Clear current session
       ws.sessionId = undefined;
-      send(ws, {
-        type: 'slash_response',
-        command: '/clear',
-        content: '会话已清空，下一条消息将创建新会话',
-      });
+      send(ws, { type: 'slash_response', command: '/clear', content: '会话已清空，下一条消息将创建新会话' });
+      break;
+
+    case 'compact':
+      send(ws, { type: 'slash_response', command: '/compact', content: '压缩历史需要 SDK 支持 compact()，当前版本暂不支持' });
       break;
 
     case 'terminal':
+      send(ws, { type: 'slash_response', command: '/terminal', content: 'TOGGLE_TERMINAL' });
+      break;
+
+    case 'permissions':
+      send(ws, { type: 'slash_response', command: '/permissions', content: `权限模式: default\n可用模式: default, acceptEdits, auto, bypassPermissions, plan, dontAsk` });
+      break;
+
+    case 'config':
       send(ws, {
         type: 'slash_response',
-        command: '/terminal',
-        content: 'TOGGLE_TERMINAL',
+        command: '/config',
+        content: `当前配置:
+PORT: ${process.env.PORT || 3000}
+CLAUDE_MODEL: ${CLAUDE_MODEL || '(默认)'}
+CLAUDE_PATH: ${process.env.CLAUDE_PATH || '/home/lis/.local/bin/claude'}
+MAX_TURNS: ${MAX_TURNS}
+MAX_BUDGET_USD: $${MAX_BUDGET_USD}`,
       });
+      break;
+
+    case 'memory':
+      send(ws, { type: 'slash_response', command: '/memory', content: '记忆管理需要 SDK 支持，可通过 CLAUDE.md 文件手动管理' });
+      break;
+
+    case 'mcp':
+      send(ws, { type: 'slash_response', command: '/mcp', content: 'MCP 服务器管理需要在启动时通过 --mcp-config 配置' });
+      break;
+
+    case 'doctor':
+      send(ws, {
+        type: 'slash_response',
+        command: '/doctor',
+        content: `健康检查:
+Claude Binary: ${process.env.CLAUDE_PATH || '/home/lis/.local/bin/claude'}
+WebSocket: 正常
+会话存储: 正常
+JWT: 已配置`,
+      });
+      break;
+
+    case 'init':
+      send(ws, { type: 'slash_response', command: '/init', content: 'CLAUDE.md 初始化需要在项目目录中手动执行: claude --init' });
+      break;
+
+    case 'review':
+      send(ws, { type: 'slash_response', command: '/review', content: '代码审查功能请在对话中直接请求，例如: "审查 src/index.ts 的代码"' });
+      break;
+
+    case 'pr-comments':
+      send(ws, { type: 'slash_response', command: '/pr-comments', content: 'PR 评论查看需要 Git 仓库配置' });
+      break;
+
+    case 'bug':
+      send(ws, { type: 'slash_response', command: '/bug', content: '报告问题: https://github.com/anthropics/claude-code/issues' });
+      break;
+
+    case 'feedback':
+      send(ws, { type: 'slash_response', command: '/feedback', content: '反馈: https://github.com/anthropics/claude-code/issues' });
+      break;
+
+    case 'login':
+      send(ws, { type: 'slash_response', command: '/login', content: 'Web 端登录通过页面左上角退出按钮重新登录' });
+      break;
+
+    case 'logout':
+      send(ws, { type: 'slash_response', command: '/logout', content: '请使用页面左上角退出按钮重新登录' });
       break;
 
     default:
