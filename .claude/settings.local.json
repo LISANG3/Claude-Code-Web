@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//home/lis/superpowers-mcp/**)",
+      "Bash(SUPERPOWERS_SKILLS_DIR=/home/lis/superpowers/skills timeout 5 node build/index.js)",
+      "WebSearch",
+      "WebFetch(domain:docs.anthropic.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:docs.claude.com)",
+      "WebFetch(domain:owasp.org)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(claude --version)",
+      "Bash(npm --version)",
+      "Bash(npx tsc *)",
+      "Bash(npm list *)",
+      "Bash(npm search *)",
+      "Bash(npm info *)",
+      "Read(//tmp/**)",
+      "Bash(npm pack *)",
+      "Bash(tar -xzf anthropic-ai-claude-agent-sdk-*.tgz)",
+      "mcp__superpowers__recommend_skills",
+      "mcp__superpowers__use_skill",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "superpowers"
+  ]
+}

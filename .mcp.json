@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "superpowers": {
+      "command": "node",
+      "args": ["/home/lis/superpowers-mcp/build/index.js"],
+      "env": {
+        "SUPERPOWERS_SKILLS_DIR": "/home/lis/superpowers/skills"
+      }
+    }
+  }
+}
