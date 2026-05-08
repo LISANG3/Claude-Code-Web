@@ -69,6 +69,9 @@ export function handleConnection(ws: WebSocket, req: IncomingMessage): void {
       case 'resume':
         handleResume(aws, msg.sessionId);
         break;
+      case 'slash_command':
+        handleSlashCommand(aws, msg.command, msg.args);
+        break;
     }
   });
 
@@ -95,12 +98,13 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
     maxTurns: MAX_TURNS,
     maxBudgetUsd: MAX_BUDGET_USD,
     includePartialMessages: true,
+    pathToClaudeCodeExecutable: process.env.CLAUDE_PATH || '/home/lis/.local/bin/claude',
   };
   if (CLAUDE_MODEL) options.model = CLAUDE_MODEL;
 
   const existingSession = getSession(sessionId);
-  if (existingSession && existingSession.numTurns > 0) {
-    options.resume = sessionId;
+  if (existingSession?.claudeSessionId && existingSession.numTurns > 0) {
+    options.resume = existingSession.claudeSessionId;
   }
 
   let aborted = false;
@@ -111,6 +115,9 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
 
     for await (const event of q) {
       if (aborted) break;
+
+      // Send raw event for terminal view
+      send(ws, { type: 'raw_event', event: JSON.stringify(event) });
 
       if (event.type === 'stream_event') {
         const streamEvent = (event as any).event;
@@ -125,6 +132,8 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
                 summary: formatToolSummary(block.name, block.input),
               },
             });
+          } else if (block?.type === 'thinking') {
+            // thinking block started
           }
         } else if (streamEvent?.type === 'content_block_delta') {
           const delta = streamEvent.delta;
@@ -132,11 +141,19 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
             send(ws, { type: 'text_delta', text: delta.text });
           } else if (delta?.type === 'input_json_delta' && delta.partial_json) {
             send(ws, { type: 'tool_delta', input: delta.partial_json });
+          } else if (delta?.type === 'thinking_delta' && delta.thinking) {
+            send(ws, { type: 'thinking_delta', text: delta.thinking });
+          }
+        } else if (streamEvent?.type === 'content_block_stop') {
+          // Check if a thinking block just ended
+          if (streamEvent.index !== undefined) {
+            // We'll rely on the message_done event to know block types
           }
         }
       } else if (event.type === 'assistant') {
         const msg = event as any;
         if (msg.message?.content) {
+          let hasThinking = false;
           for (const block of msg.message.content) {
             if (block.type === 'tool_result' && block.content) {
               send(ws, {
@@ -146,6 +163,12 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
                   : JSON.stringify(block.content),
               });
             }
+            if (block.type === 'thinking') {
+              hasThinking = true;
+            }
+          }
+          if (hasThinking) {
+            send(ws, { type: 'thinking_done' });
           }
           send(ws, {
             type: 'message_done',
@@ -153,6 +176,7 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
               content: msg.message.content.map((b: any) => ({
                 type: b.type,
                 text: b.text,
+                thinking: b.thinking,
                 name: b.name,
                 input: b.input,
                 content: typeof b.content === 'string' ? b.content : undefined,
@@ -170,10 +194,14 @@ async function handleChat(ws: AuthenticatedWebSocket, content: string): Promise<
           tokens: (result.usage?.input_tokens || 0) + (result.usage?.output_tokens || 0),
           duration: result.duration_ms || 0,
         });
-        updateSession(sessionId!, {
+        const updates: any = {
           totalCostUsd: (existingSession?.totalCostUsd || 0) + (result.total_cost_usd || 0),
           numTurns: (existingSession?.numTurns || 0) + (result.num_turns || 1),
-        });
+        };
+        if (result.session_id) {
+          updates.claudeSessionId = result.session_id;
+        }
+        updateSession(sessionId!, updates);
       }
     }
   } catch (err: any) {
@@ -202,6 +230,91 @@ function handleResume(ws: AuthenticatedWebSocket, sessionId: string): void {
   }
 }
 
+function handleSlashCommand(ws: AuthenticatedWebSocket, command: string, args?: string): void {
+  // Handle local slash commands
+  switch (command) {
+    case 'help':
+      send(ws, {
+        type: 'slash_response',
+        command: '/help',
+        content: `可用命令:
+/help     - 显示帮助
+/clear    - 清空当前对话
+/model    - 查看/切换模型
+/sessions - 列出所有会话
+/stats    - 显示当前统计
+/compact  - 压缩对话历史
+/terminal - 切换终端视图`,
+      });
+      break;
+
+    case 'model':
+      if (args) {
+        // Switch model (would need SDK support)
+        send(ws, {
+          type: 'slash_response',
+          command: '/model',
+          content: `模型切换功能需要 SDK 支持 setModel()，当前模型: ${CLAUDE_MODEL || 'sonnet'}`,
+        });
+      } else {
+        send(ws, {
+          type: 'slash_response',
+          command: '/model',
+          content: `当前模型: ${CLAUDE_MODEL || 'sonnet'}\n用法: /model <model-name>`,
+        });
+      }
+      break;
+
+    case 'stats':
+      const session = ws.sessionId ? getSession(ws.sessionId) : null;
+      if (session) {
+        send(ws, {
+          type: 'slash_response',
+          command: '/stats',
+          content: `会话统计:
+ID: ${session.id}
+模型: ${session.model}
+轮次: ${session.numTurns}
+费用: $${session.totalCostUsd.toFixed(6)}
+创建: ${session.createdAt}
+更新: ${session.updatedAt}`,
+        });
+      } else {
+        send(ws, {
+          type: 'slash_response',
+          command: '/stats',
+          content: '当前没有活跃会话',
+        });
+      }
+      break;
+
+    case 'clear':
+      // Clear current session
+      ws.sessionId = undefined;
+      send(ws, {
+        type: 'slash_response',
+        command: '/clear',
+        content: '会话已清空，下一条消息将创建新会话',
+      });
+      break;
+
+    case 'terminal':
+      send(ws, {
+        type: 'slash_response',
+        command: '/terminal',
+        content: 'TOGGLE_TERMINAL',
+      });
+      break;
+
+    default:
+      send(ws, {
+        type: 'slash_response',
+        command: `/${command}`,
+        content: `未知命令: /${command}\n输入 /help 查看可用命令`,
+      });
+  }
+}
+
 function formatToolSummary(name: string, input: any): string {
   if (!input) return name;
   switch (name) {
@@ -211,6 +324,9 @@ function formatToolSummary(name: string, input: any): string {
     case 'Write': return input.file_path || name;
     case 'Glob': return input.pattern || name;
     case 'Grep': return input.pattern || name;
+    case 'Agent': return input.prompt?.slice(0, 50) || name;
+    case 'WebFetch': return input.url || name;
+    case 'WebSearch': return input.query || name;
     default: return name;
   }
 }

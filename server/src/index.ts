@@ -15,17 +15,8 @@ initDefaultUser();
 const app = express();
 const server = createServer(app);
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      connectSrc: ["'self'", "ws:", "wss:"],
-    },
-  },
-}));
 app.use(cors());
+app.disable('x-powered-by');
 app.use(express.json());
 
 const clientDist = join(__dirname, '../../client/dist');

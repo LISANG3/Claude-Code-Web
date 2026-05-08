@@ -57,5 +57,9 @@ export function useWebSocket({ sessionId, onMessage }: UseWebSocketOptions) {
     send({ type: 'interrupt' });
   }, [send]);
 
-  return { connected, sendChat, interrupt };
+  const sendSlashCommand = useCallback((command: string, args?: string) => {
+    send({ type: 'slash_command', command, args });
+  }, [send]);
+
+  return { connected, sendChat, interrupt, sendSlashCommand };
 }

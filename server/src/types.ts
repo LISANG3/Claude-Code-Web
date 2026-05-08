@@ -13,6 +13,7 @@ export interface User {
 
 export interface SessionData {
   id: string;
+  claudeSessionId?: string;
   title: string;
   model: string;
   createdAt: string;

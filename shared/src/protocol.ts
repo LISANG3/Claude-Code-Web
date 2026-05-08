@@ -7,11 +7,12 @@ export interface ToolInfo {
 }
 
 export interface AssistantContentBlock {
-  type: 'text' | 'tool_use' | 'tool_result';
+  type: 'text' | 'tool_use' | 'tool_result' | 'thinking';
   text?: string;
   name?: string;
   input?: Record<string, unknown>;
   content?: string;
+  thinking?: string;
 }
 
 export interface AssistantMessage {
@@ -27,11 +28,14 @@ export interface AssistantMessage {
 export type ClientMessage =
   | { type: 'chat'; content: string }
   | { type: 'interrupt' }
-  | { type: 'resume'; sessionId: string };
+  | { type: 'resume'; sessionId: string }
+  | { type: 'slash_command'; command: string; args?: string };
 
 // Server -> Client
 export type ServerMessage =
   | { type: 'text_delta'; text: string }
+  | { type: 'thinking_delta'; text: string }
+  | { type: 'thinking_done' }
   | { type: 'tool_start'; tool: ToolInfo }
   | { type: 'tool_delta'; input: string }
   | { type: 'tool_result'; result: string }
@@ -39,7 +43,9 @@ export type ServerMessage =
   | { type: 'session_info'; sessionId: string; model: string }
   | { type: 'stats'; cost: number; tokens: number; duration: number }
   | { type: 'error'; message: string }
-  | { type: 'ready' };
+  | { type: 'ready' }
+  | { type: 'raw_event'; event: string } // terminal view: raw NDJSON
+  | { type: 'slash_response'; command: string; content: string };
 
 // REST API
 export interface SessionMeta {
