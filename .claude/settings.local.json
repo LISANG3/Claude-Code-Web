@@ -23,7 +23,18 @@
       "mcp__superpowers__use_skill",
       "Bash(git init *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "mcp__superpowers__get_skill_file",
+      "Bash(npm install *)",
+      "Bash(node -e ' *)",
+      "Bash(npm rebuild *)",
+      "Bash(npm uninstall *)",
+      "Bash(node *)",
+      "Bash(npm run *)",
+      "Bash(JWT_SECRET=test-secret node server/dist/index.js)",
+      "Bash(curl -s http://localhost:3000/api/health)",
+      "Bash(curl -s -X POST http://localhost:3000/api/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin\"}')",
+      "Bash(kill %1)"
     ]
   },
   "enableAllProjectMcpServers": true,

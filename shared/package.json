@@ -1,0 +1,10 @@
+{
+  "name": "@ccw/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/protocol.ts",
+  "types": "src/protocol.ts",
+  "scripts": {
+    "build": "tsc"
+  }
+}
