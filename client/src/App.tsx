@@ -7,6 +7,9 @@ import ChatView from './components/ChatView';
 import Sidebar from './components/Sidebar';
 import TabBar from './components/TabBar';
 import FileSearch from './components/FileSearch';
+import ContextPanel from './components/ContextPanel';
+import StatusBar from './components/StatusBar';
+import Settings from './components/Settings';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 interface Tab {
@@ -17,6 +20,7 @@ interface Tab {
 
 function AuthenticatedApp() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [contextPanelVisible, setContextPanelVisible] = useState(false);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeTab, setActiveTab] = useState<string | null>(null);
   const [fileSearchVisible, setFileSearchVisible] = useState(false);
@@ -24,6 +28,7 @@ function AuthenticatedApp() {
 
   useKeyboardShortcuts({
     onToggleSidebar: useCallback(() => setSidebarVisible(v => !v), []),
+    onToggleTerminal: useCallback(() => setContextPanelVisible(v => !v), []),
     onFileSearch: useCallback(() => setFileSearchVisible(v => !v), []),
     onEscape: useCallback(() => setFileSearchVisible(false), []),
   });
@@ -38,16 +43,20 @@ function AuthenticatedApp() {
   }
 
   function handleTabClose(id: string) {
-    setTabs(prev => prev.filter(t => t.id !== id));
-    if (activeTab === id) {
-      const remaining = tabs.filter(t => t.id !== id);
-      if (remaining.length > 0) {
-        handleTabSelect(remaining[remaining.length - 1].id);
-      } else {
-        setActiveTab(null);
-        navigate('/');
+    setTabs(prev => {
+      const remaining = prev.filter(t => t.id !== id);
+      if (activeTab === id) {
+        if (remaining.length > 0) {
+          const nextTab = remaining[remaining.length - 1];
+          setActiveTab(nextTab.id);
+          navigate(`/chat/${nextTab.id}`);
+        } else {
+          setActiveTab(null);
+          navigate('/');
+        }
       }
-    }
+      return remaining;
+    });
   }
 
   function handleSessionOpen(id: string, title: string, model?: string) {
@@ -81,12 +90,21 @@ function AuthenticatedApp() {
                 sidebarVisible={sidebarVisible}
                 onToggleSidebar={() => setSidebarVisible(v => !v)}
                 onSessionOpen={handleSessionOpen}
+                contextPanelVisible={contextPanelVisible}
+                onToggleContextPanel={() => setContextPanelVisible(v => !v)}
               />
             } />
+            <Route path="/settings" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
+        {contextPanelVisible && (
+          <div className="w-72 border-l border-gray-200 dark:border-gray-700 shrink-0 overflow-hidden">
+            <ContextPanel />
+          </div>
+        )}
       </div>
+      <StatusBar />
       <FileSearch
         visible={fileSearchVisible}
         onSelect={(path) => console.log('Selected file:', path)}

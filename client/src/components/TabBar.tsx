@@ -13,10 +13,8 @@ interface Props {
 }
 
 export default function TabBar({ tabs, activeTab, onTabSelect, onTabClose, onNewTab }: Props) {
-  if (tabs.length === 0) return null;
-
   return (
-    <div className="flex items-center bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-x-auto shrink-0">
+    <div className="h-8 flex items-center bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 overflow-x-auto shrink-0">
       {tabs.map(tab => (
         <div
           key={tab.id}

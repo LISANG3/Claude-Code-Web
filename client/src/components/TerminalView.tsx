@@ -58,7 +58,8 @@ export default function TerminalView({ events, visible, onClose }: Props) {
 
       {/* Events */}
       <div className="flex-1 overflow-y-auto p-2 font-mono text-[11px] leading-relaxed">
-        {filtered.map((event, i) => {
+        {filtered.map((event, filteredIdx) => {
+          const originalIdx = events.indexOf(event);
           let parsed: any;
           try { parsed = JSON.parse(event); } catch { parsed = null; }
 
@@ -67,8 +68,8 @@ export default function TerminalView({ events, visible, onClose }: Props) {
           const color = getEventColor(type, subtype);
 
           return (
-            <div key={i} className="flex gap-2 py-0.5 hover:bg-gray-800/50">
-              <span className="text-gray-600 select-none shrink-0 w-12 text-right">{i}</span>
+            <div key={`${originalIdx}-${filteredIdx}`} className="flex gap-2 py-0.5 hover:bg-gray-800/50">
+              <span className="text-gray-600 select-none shrink-0 w-12 text-right">{originalIdx}</span>
               <span className={`shrink-0 ${color}`}>{type}{subtype ? `/${subtype}` : ''}</span>
               <span className="text-gray-400 truncate">
                 {formatEventSummary(parsed)}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getSessions, createSession, deleteSession, type SessionMeta } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import ConfirmDialog from './ConfirmDialog';
 
 interface Props {
   onSessionOpen?: (id: string, title: string, model?: string) => void;
@@ -11,8 +13,10 @@ export default function SessionList({ onSessionOpen }: Props) {
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTitle, setNewTitle] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => { loadSessions(); }, []);
 
@@ -32,7 +36,6 @@ export default function SessionList({ onSessionOpen }: Props) {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('确定删除此会话？')) return;
     try {
       await deleteSession(id);
       setSessions(prev => prev.filter(s => s.id !== id));
@@ -43,9 +46,18 @@ export default function SessionList({ onSessionOpen }: Props) {
     <div className="flex-1 flex flex-col">
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Claude Code Web</h1>
-        <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
-          退出
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            title={theme === 'dark' ? '切换浅色' : '切换深色'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
+          </button>
+          <button onClick={logout} className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
+            退出
+          </button>
+        </div>
       </header>
 
       <div className="p-4 border-b border-gray-200 dark:border-gray-700">
@@ -90,7 +102,7 @@ export default function SessionList({ onSessionOpen }: Props) {
                   </p>
                 </div>
                 <button
-                  onClick={(e) => { e.stopPropagation(); handleDelete(session.id); }}
+                  onClick={(e) => { e.stopPropagation(); setDeleteTarget(session.id); }}
                   className="ml-3 text-gray-400 hover:text-red-500 transition-colors"
                   title="删除"
                 >
@@ -103,6 +115,13 @@ export default function SessionList({ onSessionOpen }: Props) {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="删除会话"
+        message="确定删除此会话？删除后无法恢复。"
+        onConfirm={() => { if (deleteTarget) { handleDelete(deleteTarget); setDeleteTarget(null); } }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

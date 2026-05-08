@@ -7,6 +7,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { authRouter, initDefaultUser } from './auth.js';
 import { filesRouter } from './files.js';
+import { gitRouter } from './git.js';
+import { envRouter } from './environment.js';
 import { handleConnection } from './ws-handler.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,6 +27,8 @@ app.use(express.static(clientDist));
 
 app.use('/api', authRouter);
 app.use('/api/files', filesRouter);
+app.use('/api/git', gitRouter);
+app.use('/api/environment', envRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok' });

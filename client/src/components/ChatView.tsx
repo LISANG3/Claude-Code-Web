@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import type { ServerMessage, ToolInfo, AssistantMessage } from '@ccw/shared';
+import { useTheme } from '../context/ThemeContext';
 import MessageBubble from './MessageBubble';
 import ToolCallCard from './ToolCallCard';
 import ThinkingBlock from './ThinkingBlock';
@@ -27,12 +28,16 @@ interface ChatViewProps {
   sidebarVisible?: boolean;
   onToggleSidebar?: () => void;
   onSessionOpen?: (id: string, title: string, model?: string) => void;
+  contextPanelVisible?: boolean;
+  onToggleContextPanel?: () => void;
 }
 
-export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpen }: ChatViewProps) {
+export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpen, contextPanelVisible, onToggleContextPanel }: ChatViewProps) {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
+  const messagesRef = useRef<DisplayMessage[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentText, setCurrentText] = useState('');
@@ -52,13 +57,14 @@ export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpe
   }, []);
 
   useEffect(() => { scrollToBottom(); }, [messages, currentText, currentThinking, scrollToBottom]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   const handleServerMessage = useCallback((msg: ServerMessage) => {
     switch (msg.type) {
       case 'session_info':
         setModel(msg.model);
         if (onSessionOpen) {
-          const firstUserMsg = messages.find(m => m.role === 'user');
+          const firstUserMsg = messagesRef.current.find(m => m.role === 'user');
           onSessionOpen(msg.sessionId, firstUserMsg?.content.slice(0, 30) || '新会话', msg.model);
         }
         break;
@@ -147,7 +153,7 @@ export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpe
       case 'ready':
         break;
     }
-  }, [currentText, currentThinking, currentTools, messages, onSessionOpen]);
+  }, [currentText, currentThinking, currentTools, onSessionOpen]);
 
   const { connected, sendChat, interrupt, sendSlashCommand } = useWebSocket({
     sessionId,
@@ -216,7 +222,15 @@ export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpe
   }
 
   return (
-    <div className="flex-1 flex flex-col h-screen">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Disconnect banner */}
+      {!connected && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border-b border-yellow-200 dark:border-yellow-800 px-4 py-1.5 text-xs text-yellow-700 dark:text-yellow-300 flex items-center justify-between shrink-0">
+          <span>连接已断开，尝试刷新页面</span>
+          <button onClick={() => window.location.reload()} className="underline hover:text-yellow-900 dark:hover:text-yellow-100">刷新</button>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
@@ -258,6 +272,26 @@ export default function ChatView({ sidebarVisible, onToggleSidebar, onSessionOpe
             className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
           >
             {stats ? `$${stats.cost.toFixed(4)}` : '统计'}
+          </button>
+          <button
+            onClick={onToggleContextPanel}
+            className={`p-1 rounded transition-colors ${
+              contextPanelVisible
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+            }`}
+            title="上下文面板 (Ctrl+J)"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            title={theme === 'dark' ? '切换浅色' : '切换深色'}
+          >
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
         </div>
       </header>
